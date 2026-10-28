@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2714%27 fill=%27%234a90d9%27/%3E%3Cellipse cx=%2732%27 cy=%2732%27 rx=%2726%27 ry=%278%27 fill=%27none%27 stroke=%27%238ab4f8%27 stroke-width=%273%27 transform=%27rotate(-18 32 32)%27/%3E%3C/svg%3E">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Live exoplanet search powered by NASA's Exoplanet Archive TAP service. No API key, no account.">
+<title>Exoplanet Explorer | NASA Exoplanet Archive</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #05070f;
+    --surface: rgba(18, 23, 46, .72);
+    --surface-solid: #121732;
+    --surface-hi: #1a2148;
+    --border: rgba(127, 150, 255, .16);
+    --border-hi: rgba(127, 180, 255, .42);
+    --text: #e9ecfa;
+    --muted: #97a0cc;
+    --dim: #5f6893;
+    --accent: #7fb4ff;
+    --accent-2: #b48cff;
+    --brand: #4d7cff;
+    --brand-hi: #6b93ff;
+    --danger: #ff8a8a;
+    --radius: 16px;
+    --ease: cubic-bezier(.2, .8, .2, 1);
+    --font: 'Inter', 'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono: 'JetBrains Mono', 'Cascadia Code', Consolas, ui-monospace, monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; max-width: 100%; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  img, canvas, svg, video { max-width: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--bg);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: rgba(127, 180, 255, .3); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+
+  /* ---------- background: canvas starfield + drifting nebula + planet ---------- */
+  #sky { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  .nebula {
+    position: fixed; inset: -20%; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(40% 35% at 15% 20%, rgba(77, 124, 255, .18), transparent 70%),
+      radial-gradient(35% 30% at 85% 75%, rgba(180, 140, 255, .14), transparent 70%),
+      radial-gradient(30% 25% at 60% 10%, rgba(60, 200, 255, .09), transparent 70%);
+    animation: drift 40s ease-in-out infinite alternate;
+  }
+  @keyframes drift { to { transform: translate3d(3%, -2%, 0) rotate(2deg); } }
+
+  .planet {
+    position: fixed; z-index: 0; pointer-events: none;
+    right: clamp(-120px, -4vw, -40px); top: clamp(40px, 9vh, 110px);
+    width: min(38vw, 340px); aspect-ratio: 1;
+    animation: float 9s ease-in-out infinite;
+  }
+  .planet .globe {
+    position: absolute; inset: 0; border-radius: 50%;
+    background:
+      radial-gradient(circle at 32% 28%, #9fd0ff 0%, #3b6fd6 28%, #1a2c6b 62%, #0a0f26 100%);
+    box-shadow: inset -28px -22px 60px rgba(0, 0, 0, .65), 0 0 80px rgba(77, 124, 255, .25);
+    opacity: .85;
+  }
+  .planet .ring {
+    position: absolute; left: -38%; right: -38%; top: 42%; height: 22%;
+    border-radius: 50%;
+    border: 2px solid rgba(190, 220, 255, .35);
+    box-shadow: 0 0 22px rgba(127, 180, 255, .18);
+    transform: rotate(-16deg);
+    opacity: .7;
+  }
+  .planet .ring::after {
+    content: ""; position: absolute; inset: 14% 6%;
+    border-radius: 50%; border: 1px solid rgba(180, 140, 255, .25);
+  }
+  @keyframes float { 50% { transform: translateY(-14px) rotate(3deg); } }
+
+  /* ---------- layout ---------- */
+  .shell { position: relative; z-index: 1; max-width: 100%; min-width: 0; overflow-x: clip; }
+  header { padding: clamp(32px, 8vh, 72px) 20px 12px; text-align: center; min-width: 0; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: .72rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); padding: 6px 12px; border-radius: 999px;
+    background: rgba(127, 180, 255, .08); border: 1px solid var(--border);
+    animation: rise .7s var(--ease) both;
+  }
+  .eyebrow i { width: 6px; height: 6px; border-radius: 50%; background: #5ee3a1; box-shadow: 0 0 10px #5ee3a1; animation: pulse 2s ease-in-out infinite; }
+  h1 {
+    margin: 18px 0 0; font-size: clamp(2rem, 4.4vw + 1rem, 3.1rem); overflow-wrap: break-word; font-weight: 700; letter-spacing: -.02em; line-height: 1.1;
+    animation: rise .7s .08s var(--ease) both;
+  }
+  h1 .grad {
+    background: linear-gradient(120deg, var(--accent) 0%, #ffffff 45%, var(--accent-2) 100%);
+    background-size: 200% auto; -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shine 6s linear infinite;
+  }
+  @keyframes shine { to { background-position: 200% center; } }
+  header p {
+    margin: 14px auto 0; max-width: 560px; color: var(--muted); font-size: .98rem;
+    animation: rise .7s .16s var(--ease) both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  .panel { width: 100%; max-width: 980px; min-width: 0; margin: 28px auto 0; padding: 0 18px; }
+
+  /* ---------- filter card ---------- */
+  .card {
+    min-width: 0; max-width: 100%;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow: 0 20px 60px -20px rgba(0, 0, 0, .6), inset 0 1px 0 rgba(255, 255, 255, .04);
+  }
+  .controls {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 14px; align-items: end;
+    padding: 18px; animation: rise .7s .22s var(--ease) both;
+  }
+  .field { min-width: 0; max-width: 100%; }
+  label {
+    display: block; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); margin-bottom: 7px;
+  }
+  /* inputs + selects share one height, radius and focus language (matches the Search button) */
+  input, select {
+    width: 100%; min-width: 0; max-width: 100%; height: 43px; padding: 0 14px; border-radius: 10px; border: 1px solid #2a3260;
+    background-color: rgba(5, 7, 15, .6); color: var(--text); font: inherit; font-size: .95rem;
+    transition: border-color .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease), transform .2s var(--ease);
+  }
+  input[type=number] { -moz-appearance: textfield; appearance: textfield; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: .92rem; }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  input::placeholder { color: var(--dim); opacity: 1; font-style: italic; }
+  input:hover, select:hover { border-color: #3a4590; background-color: rgba(5, 7, 15, .78); }
+  input:focus, select:focus {
+    outline: none; border-color: var(--brand-hi); background-color: rgba(5, 7, 15, .88);
+    box-shadow: 0 0 0 4px rgba(77, 124, 255, .22), 0 0 24px -6px rgba(107, 147, 255, .45);
+  }
+  /* custom select: native arrow removed, our chevron drawn in accent color */
+  select {
+    -webkit-appearance: none; -moz-appearance: none; appearance: none; cursor: pointer;
+    padding-right: 40px; text-overflow: ellipsis;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%237fb4ff' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 15px center; background-size: 12px 8px;
+  }
+  select:invalid, select option[value=""] { color: var(--dim); font-style: italic; }
+  select option { background: #121732; color: var(--text); font-style: normal; }
+  select:disabled { opacity: .5; cursor: not-allowed; }
+  input:disabled { opacity: .5; cursor: not-allowed; }
+
+  .btn {
+    position: relative; overflow: hidden; isolation: isolate;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    min-width: 132px; height: 43px; padding: 0 22px; border: 0; border-radius: 10px;
+    background: linear-gradient(135deg, var(--brand) 0%, #7b5cff 100%);
+    color: #fff; font: inherit; font-weight: 600; font-size: .95rem; letter-spacing: .01em; cursor: pointer;
+    box-shadow: 0 8px 24px -8px rgba(77, 124, 255, .7), inset 0 1px 0 rgba(255, 255, 255, .25);
+    transition: transform .15s var(--ease), box-shadow .25s var(--ease), filter .25s var(--ease);
+    user-select: none; -webkit-tap-highlight-color: transparent;
+  }
+  .btn::before {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    background: linear-gradient(135deg, var(--brand-hi), #9a7bff);
+    opacity: 0; transition: opacity .3s var(--ease);
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 12px 30px -8px rgba(107, 147, 255, .8), inset 0 1px 0 rgba(255, 255, 255, .3); }
+  .btn:hover::before { opacity: 1; }
+  .btn:active { transform: translateY(1px) scale(.98); }
+  .btn:disabled { cursor: progress; filter: saturate(.7); transform: none; }
+  .btn .spinner { display: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35); border-top-color: #fff; animation: spin .7s linear infinite; }
+  .btn.is-loading .spinner { display: inline-block; }
+  .btn.is-loading .label { opacity: .9; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .ripple {
+    position: absolute; border-radius: 50%; pointer-events: none; transform: scale(0);
+    background: rgba(255, 255, 255, .45); animation: ripple .6s var(--ease) forwards; z-index: -1;
+  }
+  @keyframes ripple { to { transform: scale(1); opacity: 0; } }
+
+  /* ---------- presets ---------- */
+  .presets { display: flex; flex-wrap: wrap; min-width: 0; max-width: 100%; align-items: center; gap: 8px; margin: 16px 2px 0; font-size: .82rem; color: var(--dim); animation: rise .7s .3s var(--ease) both; }
+  .presets > span { margin-right: 4px; }
+  .sort-field { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: auto; max-width: 100%; }
+  .sort-field label { margin: 0; white-space: nowrap; }
+  .sort-field select { width: auto; min-width: 170px; max-width: 100%; height: 36px; font-size: .86rem; padding-top: 0; padding-bottom: 0; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+    max-width: 100%; min-width: 0; text-align: left; line-height: 1.35; white-space: normal; overflow-wrap: anywhere;
+    background: rgba(127, 180, 255, .07); border: 1px solid var(--border); color: var(--accent);
+    font: inherit; font-size: .82rem; cursor: pointer; text-decoration: none;
+    transition: background .2s, border-color .2s, transform .15s var(--ease), color .2s;
+  }
+  .chip:hover { background: rgba(127, 180, 255, .16); border-color: var(--border-hi); color: #fff; transform: translateY(-1px); }
+  .chip:active { transform: scale(.94); }
+  .chip.is-active { background: rgba(107, 147, 255, .25); border-color: var(--brand-hi); color: #fff; }
+  .chip .arrow { display: inline-block; transition: transform .25s var(--ease); }
+  .chip:hover .arrow { transform: translateX(3px); }
+
+  /* ---------- stats ---------- */
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 20px 0 0; min-width: 0; max-width: 100%; }
+  .stat {
+    padding: 16px 18px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border);
+    transition: border-color .25s, transform .25s var(--ease), opacity .4s var(--ease);
+    opacity: 0; transform: translateY(8px);
+  }
+  .stat.in { opacity: 1; transform: none; }
+  .stat:hover { border-color: var(--border-hi); transform: translateY(-2px); }
+  .stat b {
+    display: block; font-family: var(--mono); font-size: 1.6rem; font-weight: 600; letter-spacing: -.01em;
+    background: linear-gradient(180deg, #fff, var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat span { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+
+  /* ---------- status + table ---------- */
+  .status { position: relative; margin-top: 16px; }
+  .scan { position: absolute; left: 0; right: 0; top: -1px; height: 2px; overflow: hidden; border-radius: 2px; opacity: 0; transition: opacity .2s; }
+  .scan::after { content: ""; position: absolute; top: 0; bottom: 0; width: 35%; background: linear-gradient(90deg, transparent, var(--accent), transparent); animation: scan 1.1s linear infinite; }
+  .status.loading .scan { opacity: 1; }
+  @keyframes scan { from { left: -35%; } to { left: 100%; } }
+
+  .msg { text-align: center; color: var(--muted); padding: 44px 16px; max-width: 100%; overflow-wrap: anywhere; border-radius: var(--radius); border: 1px dashed rgba(127, 150, 255, .2); background: rgba(12, 16, 36, .4); }
+  .msg .glyph { font-size: 1.6rem; display: block; margin-bottom: 6px; opacity: .8; }
+  .msg.err { color: var(--danger); border-color: rgba(255, 138, 138, .35); }
+
+  .table-wrap { width: 100%; max-width: 100%; min-width: 0; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: rgba(14, 18, 40, .8); backdrop-filter: blur(12px); box-shadow: 0 20px 60px -24px rgba(0, 0, 0, .7); animation: rise .5s var(--ease) both; }
+  .table-scroll { width: 100%; max-width: 100%; max-height: 62vh; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: rgba(127, 180, 255, .35) transparent; }
+  table { width: 100%; min-width: 560px; border-collapse: separate; border-spacing: 0; }
+  thead th {
+    position: sticky; top: 0; z-index: 2; background: #161c40; color: var(--muted);
+    font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+    text-align: left; padding: 12px 14px; cursor: pointer; user-select: none; white-space: nowrap;
+    border-bottom: 1px solid var(--border); transition: color .2s;
+  }
+  thead th:hover { color: #fff; }
+  thead th .sort { display: inline-block; width: 10px; margin-left: 6px; color: var(--accent); opacity: 0; transition: opacity .2s, transform .25s var(--ease); }
+  thead th.sorted { color: #fff; }
+  thead th.sorted .sort { opacity: 1; }
+  thead th.sorted.desc .sort { transform: rotate(180deg); }
+  tbody td { padding: 11px 14px; font-size: .9rem; border-bottom: 1px solid rgba(127, 150, 255, .08); white-space: nowrap; }
+  tbody td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: .86rem; }
+  tbody td.name { color: #fff; font-weight: 500; }
+  tbody tr { animation: rowIn .45s var(--ease) both; animation-delay: calc(var(--i, 0) * 18ms); transition: background .2s; }
+  tbody tr:hover td { background: rgba(127, 180, 255, .07); }
+  tbody tr:last-child td { border-bottom: 0; }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  .skeleton td { padding: 14px; }
+  .skeleton .bar { height: 10px; border-radius: 6px; background: linear-gradient(90deg, rgba(127, 150, 255, .08), rgba(127, 180, 255, .18), rgba(127, 150, 255, .08)); background-size: 200% 100%; animation: shimmer 1.2s linear infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  /* ---------- how-to + footer ---------- */
+  .howto { width: 100%; max-width: 980px; min-width: 0; margin: 36px auto 0; padding: 0 18px; }
+  .howto details { min-width: 0; max-width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px; backdrop-filter: blur(12px); transition: border-color .25s var(--ease); }
+  .howto details[open] { border-color: var(--border-hi); }
+  .howto summary:hover { color: #fff; }
+  .howto summary { cursor: pointer; color: var(--accent); font-weight: 600; list-style: none; display: flex; align-items: center; justify-content: space-between; }
+  .howto summary::-webkit-details-marker { display: none; }
+  .howto summary::after { content: "+"; font-family: var(--mono); transition: transform .25s var(--ease); }
+  .howto details[open] summary::after { transform: rotate(45deg); }
+  /* setup card: numbered steps + terminal windows with copy buttons */
+  .setup { margin-top: 16px; }
+  .setup-intro { overflow-wrap: break-word; margin: 0 0 18px; color: var(--muted); font-size: .9rem; line-height: 1.6; }
+  .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; display: grid; gap: 18px; }
+  .steps li { counter-increment: step; position: relative; min-width: 0; padding-left: 40px; color: var(--muted); font-size: .9rem; }
+  .steps li::before {
+    content: counter(step); position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%;
+    display: grid; place-items: center; font-family: var(--mono); font-size: .78rem; font-weight: 600; color: #fff;
+    background: rgba(107, 147, 255, .18); border: 1px solid var(--border-hi); box-shadow: 0 0 14px -4px rgba(107, 147, 255, .6);
+  }
+  .steps li p { margin: 0; line-height: 26px; }
+  .term {
+    min-width: 0; max-width: 100%;
+    margin-top: 10px; border-radius: 12px; overflow: hidden; background: #070a18; border: 1px solid var(--border);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .03), 0 16px 32px -18px rgba(0, 0, 0, .9);
+  }
+  .term-bar { display: flex; flex-wrap: wrap; row-gap: 6px; align-items: center; gap: 7px; padding: 9px 12px; background: rgba(18, 23, 46, .9); border-bottom: 1px solid var(--border); }
+  .term-bar .dot { width: 10px; height: 10px; border-radius: 50%; opacity: .8; }
+  .term-bar .dot:nth-child(1) { background: #ff8a8a; }
+  .term-bar .dot:nth-child(2) { background: #f5c76b; }
+  .term-bar .dot:nth-child(3) { background: #5ee3a1; }
+  .term-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: 8px; font-family: var(--mono); font-size: .72rem; color: var(--dim); letter-spacing: .04em; }
+  .copy {
+    margin-left: auto; flex-shrink: 0; font-family: var(--mono); font-size: .72rem; color: var(--muted); cursor: pointer;
+    background: rgba(127, 180, 255, .08); border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px;
+    transition: color .2s, border-color .2s, background .2s, transform .15s var(--ease);
+  }
+  .copy:hover { color: #fff; border-color: var(--border-hi); background: rgba(127, 180, 255, .16); }
+  .copy:active { transform: scale(.94); }
+  .copy.done { color: #5ee3a1; border-color: rgba(94, 227, 161, .45); }
+  .term pre {
+    margin: 0; max-width: 100%; padding: 14px 16px; font-family: var(--mono); font-size: .92rem; color: #e6efff;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: pre; user-select: text;
+  }
+  .term .prompt { color: var(--accent); user-select: none; margin-right: 10px; }
+  .setup-note { overflow-wrap: anywhere; margin: 20px 0 0; padding-top: 14px; border-top: 1px solid var(--border); color: var(--dim); font-size: .82rem; }
+  .howto code { font-family: var(--mono); font-size: .84rem; background: rgba(5, 7, 15, .7); border: 1px solid var(--border); padding: 2px 7px; border-radius: 6px; color: #cfe0ff; }
+  footer { text-align: center; color: var(--dim); font-size: .8rem; padding: 36px 16px 40px; min-width: 0; }
+  /* footer status pill */
+  .live-pill {
+    display: inline-flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 10px;
+    padding: 8px 16px; border-radius: 999px; max-width: 100%; box-sizing: border-box; text-align: center;
+    background: rgba(12, 16, 36, .7); border: 1px solid var(--border); backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px -14px rgba(0, 0, 0, .7);
+    font-family: var(--mono); font-size: .74rem; line-height: 1.4; color: var(--dim); letter-spacing: .02em;
+  }
+  .live-pill .sep { opacity: .4; }
+  .live-pill a { color: var(--accent); }
+  .live-tag { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: #5ee3a1; }
+  .live-dot { position: relative; width: 7px; height: 7px; border-radius: 50%; background: #5ee3a1; box-shadow: 0 0 8px #5ee3a1; }
+  .live-dot::after {
+    content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1px solid #5ee3a1;
+    animation: ping 1.8s var(--ease) infinite;
+  }
+  @keyframes ping { from { transform: scale(.4); opacity: .9; } to { transform: scale(1.8); opacity: 0; } }
+  footer a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color .2s; }
+  footer a:hover { border-color: var(--accent); }
+
+  @media (max-width: 1024px) {
+    .planet { width: min(34vw, 300px); right: -6vw; }
+  }
+  @media (max-width: 720px) {
+    .controls { grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; }
+    .controls .btn { grid-column: 1 / -1; width: 100%; }
+    .sort-field { width: 100%; margin-left: 0; justify-content: space-between; }
+    .sort-field select { min-width: 150px; }
+    .planet { width: min(62vw, 300px); top: 6vh; right: -22vw; opacity: .3; }
+    .table-scroll { max-height: 60vh; }
+  }
+  @media (max-width: 600px) {
+    .stats { grid-template-columns: 1fr; gap: 10px; }
+    .stat { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 14px 16px; }
+    .stat b { font-size: 1.35rem; }
+    .stat span { text-align: right; }
+  }
+  @media (max-width: 460px) {
+    .controls { grid-template-columns: 1fr; }
+    .panel, .howto { padding: 0 12px; }
+    header { padding-left: 16px; padding-right: 16px; }
+    .planet { width: 78vw; top: 3vh; right: -36vw; opacity: .25; }
+    .eyebrow { font-size: .66rem; letter-spacing: .1em; }
+    .live-pill { border-radius: 18px; font-size: .7rem; gap: 6px 8px; padding: 8px 12px; }
+    footer { padding: 28px 12px 32px; }
+    .howto details { padding: 12px 14px; }
+    .steps { gap: 16px; }
+    .steps li { padding-left: 34px; }
+    .term-bar { padding: 8px 10px; }
+    .term-title { font-size: .66rem; }
+    .copy { padding: 3px 8px; }
+    .term pre { font-size: .8rem; padding: 12px; }
+    .msg { padding: 28px 14px; }
+    .chip { font-size: .78rem; padding: 6px 10px; }
+    thead th { padding: 10px; font-size: .66rem; }
+    tbody td { padding: 9px 10px; font-size: .84rem; }
+  }
+  @media (max-width: 360px) {
+    .controls { padding: 14px; }
+    .card { border-radius: 14px; }
+    .eyebrow { letter-spacing: .06em; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="nebula" aria-hidden="true"></div>
+<canvas id="sky" aria-hidden="true"></canvas>
+<div class="planet" aria-hidden="true"><div class="globe"></div><div class="ring"></div></div>
+
+<div class="shell">
+  <header>
+    <span class="eyebrow"><i></i>Live · NASA Exoplanet Archive</span>
+    <h1>Exoplanet <span class="grad">Explorer</span></h1>
+    <p>Search confirmed worlds beyond our Sun. Live data from NASA's TAP service: no API key, no account, just HTTP.</p>
+  </header>
+
+  <main class="panel">
+    <section class="card controls" aria-label="Search filters">
+      <div class="field"><label for="dist">Max distance (light-years)</label><input id="dist" type="number" min="0" value="50"></div>
+      <div class="field"><label for="year">Discovery year</label><input id="year" type="number" placeholder="any (e.g. 2024)"></div>
+      <div class="field"><label for="orb">Max orbital period (days)</label><input id="orb" type="number" min="0" placeholder="any"></div>
+      <button class="btn" id="searchBtn" type="button"><span class="spinner" aria-hidden="true"></span><span class="label">Search</span></button>
+    </section>
+
+    <nav class="presets" aria-label="Quick searches">
+      <div class="sort-field">
+        <label for="sortSel">Sort by</label>
+        <select id="sortSel">
+          <option value="sy_dist">Distance (ly)</option>
+          <option value="pl_orbper">Orbit (days)</option>
+          <option value="disc_year">Discovery year</option>
+          <option value="pl_name">Planet name</option>
+          <option value="hostname">Star name</option>
+        </select>
+      </div>
+      <span>Try:</span>
+      <button class="chip" type="button" data-preset="50,2024,">2024 · within 50 ly <span class="arrow">→</span></button>
+      <button class="chip" type="button" data-preset="20,,5">fast orbits under 5 days, under 20 ly <span class="arrow">→</span></button>
+      <button class="chip" type="button" data-preset="15,,">everything within 15 ly <span class="arrow">→</span></button>
+    </nav>
+
+    <div class="stats" id="stats" aria-live="polite"></div>
+
+    <div class="status" id="status">
+      <div class="scan" aria-hidden="true"></div>
+      <div class="msg" id="msg" role="status"><span class="glyph">✦</span>Enter your filters and hit Search.</div>
+    </div>
+
+    <div class="table-wrap" id="tbl" hidden>
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th data-k="pl_name" scope="col">Planet<span class="sort">▲</span></th>
+            <th data-k="hostname" scope="col">Star<span class="sort">▲</span></th>
+            <th data-k="disc_year" scope="col">Discovered<span class="sort">▲</span></th>
+            <th data-k="pl_orbper" scope="col">Orbit (days)<span class="sort">▲</span></th>
+            <th data-k="sy_dist" scope="col">Distance (ly)<span class="sort">▲</span></th>
+          </tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <details class="howto">
+    <summary>How to run this demo</summary>
+    <div class="setup">
+      <p class="setup-intro">NASA's API blocks cross-origin browser requests, so this page fetches through the tiny companion server (server.py). Put both files in one folder, then follow the steps.</p>
+      <ol class="steps">
+        <li><p>Open PowerShell in the folder that holds both files.</p></li>
+        <li>
+          <p>Start the companion server:</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="term-title">PowerShell</span><button class="copy" type="button" data-copy="py server.py">copy</button></div>
+            <pre><span class="prompt">PS&gt;</span>py server.py</pre>
+          </div>
+        </li>
+        <li>
+          <p>Open the demo in your browser:</p>
+          <div class="term">
+            <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="term-title">browser</span><button class="copy" type="button" data-copy="http://localhost:8000/exoplanet-explorer.html">copy</button></div>
+            <pre>http://localhost:8000/exoplanet-explorer.html</pre>
+          </div>
+        </li>
+      </ol>
+      <p class="setup-note">No dependencies beyond Python, no API key anywhere.</p>
+    </div>
+  </details>
+
+  <footer>
+    <span class="live-pill">
+      <span class="live-tag"><i class="live-dot" aria-hidden="true"></i>live data</span>
+      <span class="sep" aria-hidden="true">·</span>
+      <a href="https://exoplanetarchive.ipac.caltech.edu/" target="_blank" rel="noopener">NASA Exoplanet Archive TAP</a>
+      <span class="sep" aria-hidden="true">·</span>
+      <span>queries run live from your browser</span>
+    </span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- state ----------
+  let data = [];
+  let sortKey = 'sy_dist';
+  let sortAsc = true;
+  let requestId = 0;
+
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    dist: $('dist'), year: $('year'), orb: $('orb'),
+    btn: $('searchBtn'), status: $('status'), msg: $('msg'),
+    tbl: $('tbl'), rows: $('rows'), stats: $('stats'),
+  };
+
+  // ---------- starfield + parallax (canvas) ----------
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const canvas = $('sky');
+  const ctx = canvas.getContext('2d');
+  let stars = [], w = 0, h = 0, dpr = 1, mouse = { x: 0, y: 0, tx: 0, ty: 0 };
+
+  function buildStars() {
+    const count = Math.min(340, Math.round((w * h) / 4200));
+    stars = Array.from({ length: count }, () => ({
+      x: Math.random() * w,
+      y: Math.random() * h,
+      r: Math.random() * 1.3 + 0.2,
+      z: Math.random() * 0.8 + 0.2,        // depth: parallax factor
+      p: Math.random() * Math.PI * 2,      // twinkle phase
+      s: Math.random() * 0.02 + 0.004,     // twinkle speed
+      hue: Math.random() < 0.15 ? 'rgba(160,200,255,' : Math.random() < 0.1 ? 'rgba(220,180,255,' : 'rgba(255,255,255,',
+    }));
+  }
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    w = window.innerWidth; h = window.innerHeight;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    buildStars();
+  }
+  function frame(t) {
+    mouse.x += (mouse.tx - mouse.x) * 0.04;
+    mouse.y += (mouse.ty - mouse.y) * 0.04;
+    ctx.clearRect(0, 0, w, h);
+    for (const s of stars) {
+      s.p += s.s;
+      const a = 0.35 + Math.sin(s.p) * 0.35;
+      const px = s.x + mouse.x * 18 * s.z;
+      const py = s.y + mouse.y * 18 * s.z;
+      ctx.beginPath();
+      ctx.fillStyle = s.hue + Math.max(0.08, Math.min(1, a * s.z + 0.15)) + ')';
+      ctx.arc(((px % w) + w) % w, ((py % h) + h) % h, s.r * (0.6 + s.z * 0.6), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (!reduceMotion) requestAnimationFrame(frame);
+  }
+  window.addEventListener('resize', resize);
+  window.addEventListener('pointermove', (e) => {
+    mouse.tx = e.clientX / w - 0.5;
+    mouse.ty = e.clientY / h - 0.5;
+  }, { passive: true });
+  resize();
+  requestAnimationFrame(frame);
+  if (reduceMotion) frame(0);
+
+  // ---------- helpers ----------
+  const fmt1 = (v) => (v != null && v !== '' ? (+v).toFixed(1) : '-');
+  const fmt2 = (v) => (v != null && v !== '' ? (+v).toFixed(2) : '-');
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function setStatus(text, { loading = false, error = false } = {}) {
+    els.status.classList.toggle('loading', loading);
+    els.msg.className = 'msg' + (error ? ' err' : '');
+    els.msg.innerHTML = `<span class="glyph">${error ? '⚠' : '✦'}</span>${esc(text)}`;
+    els.msg.style.display = 'block';
+  }
+  function setBusy(busy) {
+    els.btn.disabled = busy;
+    els.btn.classList.toggle('is-loading', busy);
+    els.btn.querySelector('.label').textContent = busy ? 'Searching' : 'Search';
+  }
+  function ripple(e) {
+    const r = els.btn.getBoundingClientRect();
+    const d = Math.max(r.width, r.height) * 2;
+    const s = document.createElement('span');
+    s.className = 'ripple';
+    s.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
+    els.btn.appendChild(s);
+    s.addEventListener('animationend', () => s.remove());
+  }
+
+  function countTo(el, to, fmt) {
+    const from = parseFloat(el.dataset.v || '0');
+    el.dataset.v = to;
+    if (reduceMotion || !isFinite(to) || from === to) { el.textContent = fmt(to); return; }
+    const start = performance.now(), dur = 700;
+    const step = (now) => {
+      const k = Math.min(1, (now - start) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      el.textContent = fmt(from + (to - from) * e);
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  function renderStats(dists) {
+    const nearest = dists.length ? Math.min(...dists) : null;
+    const hosts = new Set(data.map((d) => d.hostname)).size;
+    els.stats.innerHTML = `
+      <div class="stat"><b data-stat="planets">0</b><span>planets</span></div>
+      <div class="stat"><b data-stat="nearest">-</b><span>nearest (ly)</span></div>
+      <div class="stat"><b data-stat="hosts">0</b><span>host stars</span></div>`;
+    const cards = els.stats.querySelectorAll('.stat');
+    cards.forEach((c, i) => setTimeout(() => c.classList.add('in'), 60 + i * 90));
+    countTo(els.stats.querySelector('[data-stat="planets"]'), data.length, (v) => Math.round(v).toLocaleString());
+    const n = els.stats.querySelector('[data-stat="nearest"]');
+    if (nearest == null) n.textContent = '-';
+    else countTo(n, nearest, (v) => v.toFixed(1));
+    countTo(els.stats.querySelector('[data-stat="hosts"]'), hosts, (v) => Math.round(v).toLocaleString());
+  }
+
+  function skeleton() {
+    els.rows.innerHTML = Array.from({ length: 6 }, () =>
+      `<tr class="skeleton">${'<td><div class="bar"></div></td>'.repeat(5)}</tr>`).join('');
+    els.tbl.hidden = false;
+  }
+
+  // ---------- data (unchanged ADQL) ----------
+  async function load() {
+    const myId = ++requestId;
+    const dist = els.dist.value || 3000;
+    const year = els.year.value.trim();
+    const orb  = els.orb.value.trim();
+    let q = `select pl_name,hostname,disc_year,pl_orbper,sy_dist from ps where default_flag=1 and sy_dist<${dist}`;
+    if (year) q += ` and disc_year=${year}`;
+    if (orb)  q += ` and pl_orbper<${orb}`;
+    q += ` order by sy_dist`;
+
+    setBusy(true);
+    setStatus('Querying NASA...', { loading: true });
+    els.tbl.hidden = true;
+    skeleton();
+    try {
+      const url = `/api/exo?query=${encodeURIComponent(q)}&format=json`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const json = await r.json();
+      if (myId !== requestId) return; // a newer search superseded this one
+      data = json;
+      render();
+    } catch (e) {
+      if (myId !== requestId) return;
+      setStatus('Request failed: ' + e.message + (e.message.includes('Failed to fetch') ? '. If this stays broken, the file may need to be served over http (see README).' : ''), { error: true });
+      els.tbl.hidden = true;
+    } finally {
+      if (myId === requestId) setBusy(false);
+      els.status.classList.remove('loading');
+    }
+  }
+
+  function sortValue(row, key) {
+    const v = row[key];
+    return v == null || v === '' ? null : v;
+  }
+  function compare(a, b) {
+    // nulls always sink to the bottom, whichever direction is active
+    const va = sortValue(a, sortKey), vb = sortValue(b, sortKey);
+    if (va === null && vb === null) return 0;
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    const dir = sortAsc ? 1 : -1;
+    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+    return String(va).localeCompare(String(vb), undefined, { numeric: true, sensitivity: 'base' }) * dir;
+  }
+
+  function render() {
+    const hasRows = data.length > 0;
+    els.tbl.hidden = !hasRows;
+    if (!hasRows) {
+      setStatus('No planets match those filters.');
+      renderStats([]);
+      els.rows.innerHTML = '';
+      return;
+    }
+    els.msg.style.display = 'none';
+    data.sort(compare);
+    const dists = data.map((d) => d.sy_dist).filter((v) => v != null);
+    renderStats(dists);
+    els.rows.innerHTML = data.map((p, i) => `
+      <tr style="--i:${Math.min(i, 40)}">
+        <td class="name">${esc(p.pl_name)}</td>
+        <td>${esc(p.hostname)}</td>
+        <td class="num">${esc(p.disc_year ?? '-')}</td>
+        <td class="num">${fmt2(p.pl_orbper)}</td>
+        <td class="num">${fmt1(p.sy_dist)}</td>
+      </tr>`).join('');
+    updateSortHeaders();
+  }
+
+  function updateSortHeaders() {
+    if ($('sortSel') && $('sortSel').value !== sortKey) $('sortSel').value = sortKey;
+    document.querySelectorAll('thead th').forEach((th) => {
+      const on = th.dataset.k === sortKey;
+      th.classList.toggle('sorted', on);
+      th.classList.toggle('desc', on && !sortAsc);
+      th.setAttribute('aria-sort', on ? (sortAsc ? 'ascending' : 'descending') : 'none');
+    });
+  }
+
+  // ---------- presets ----------
+  function preset(d, y, o) {
+    els.dist.value = d;
+    els.year.value = y ?? '';
+    els.orb.value = o ?? '';
+    document.querySelectorAll('.chip').forEach((c) => c.classList.remove('is-active'));
+    load();
+  }
+
+  // ---------- wiring ----------
+  els.btn.addEventListener('click', (e) => { ripple(e); load(); });
+  [els.dist, els.year, els.orb].forEach((input) =>
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') load(); }));
+
+  document.querySelectorAll('.chip[data-preset]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const [d, y, o] = chip.dataset.preset.split(',');
+      chip.classList.add('is-active');
+      preset(+d, y === '' ? null : +y, o === '' ? null : +o);
+    });
+  });
+
+  document.querySelectorAll('thead th').forEach((th) => {
+    th.addEventListener('click', () => {
+      sortAsc = sortKey === th.dataset.k ? !sortAsc : true;
+      sortKey = th.dataset.k;
+      if (data.length) render();
+      else updateSortHeaders();
+    });
+    th.setAttribute('tabindex', '0');
+    th.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); } });
+  });
+
+  // sort dropdown: drives the same sortKey/sortAsc state as the table headers
+  const sortSel = $('sortSel');
+  sortSel.value = sortKey;
+  sortSel.addEventListener('change', () => {
+    sortKey = sortSel.value;
+    sortAsc = true;
+    if (data.length) render();
+    else updateSortHeaders();
+  });
+
+  // copy buttons in the setup card
+  document.querySelectorAll('.copy[data-copy]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(btn.dataset.copy); } catch (_) { return; }
+      btn.textContent = 'copied';
+      btn.classList.add('done');
+      setTimeout(() => { btn.textContent = 'copy'; btn.classList.remove('done'); }, 1400);
+    });
+  });
+
+  updateSortHeaders();
+})();
+</script>
+</body>
+</html>
