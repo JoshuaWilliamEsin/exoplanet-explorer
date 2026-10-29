@@ -40,9 +40,11 @@ Beyond that: a classroom tool with zero setup. Students can filter by orbital pe
 
 ## The demo
 
-`exoplanet-explorer.html` is a single-file web app, included in this submission. It queries the API live; nothing cached, nothing faked and lets you filter by maximum distance in light-years, discovery year, and orbital period, with a sortable results table and summary stats.
+`exoplanet-explorer.html` is a single-file web app, included in this submission. It queries the API live; nothing cached, nothing faked, and lets you filter by maximum distance in light-years, discovery year, and orbital period, with a sortable results table and summary stats.
 
-To run it: put it in a folder with the included `server.py` and run `py server.py` (Python 3, nothing else). The server exists for one reason: browsers block cross-origin requests to APIs that don't send CORS headers, and NASA's service doesn't, so a 16-line local proxy fetches on the page's behalf. The API itself never required a key at any point.
+**Try it live, no setup:** https://exoplanet-explorer-1y5h.onrender.com (hosted free on Render; the first load after a quiet period takes ~30-50 seconds while the free instance wakes up, every load after that is fast).
+
+To run it locally instead: put it in a folder with the included `server.py` and run `py server.py` (Python 3, nothing else), then open http://localhost:8000. The server exists for one reason: browsers block cross-origin requests to APIs that don't send CORS headers, and NASA's service doesn't, so a 16-line proxy (the same one running the live demo) fetches on the page's behalf. The API itself never required a key at any point.
 
 ## Why it's special
 

@@ -616,7 +616,8 @@
     els.tbl.hidden = true;
     skeleton();
     try {
-      const url = `/api/exo?query=${encodeURIComponent(q)}&format=json`;
+      const API = 'https://exoplanet-explorer-1y5h.onrender.com/api/exo';
+      const url = `${API}?query=${encodeURIComponent(q)}&format=json`;
       const r = await fetch(url);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const json = await r.json();
